@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+
+{% block content %}
+<!-- Move progress bar to top of page -->
+<div id="update-progress" class="alert alert-info mb-4" style="display: none;">
+    <div class="d-flex align-items-center">
+        <div class="me-3">
+            <i class="fas fa-sync-alt fa-spin"></i>
+            <strong class="ms-2">Updating stocks...</strong>
+        </div>
+        <div class="progress flex-grow-1">
+            <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                 role="progressbar" 
+                 style="width: 0%">0%</div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="card-title">Statistics</h5>
+                    <button class="btn btn-primary" onclick="refreshAllData()" id="refresh-btn">
+                        <i class="fas fa-sync-alt"></i> Refresh All
+                    </button>
+                </div>
+                <p>Total Stocks: {{ total_stocks }}</p>
+                <p>Bullish Signals: {{ bullish_count }}</p>
+                <p>Bearish Signals: {{ bearish_count }}</p>
+            </div>
+        </div>
+
+        <!-- New card for crossover criteria -->
+        <div class="card mt-3">
+            <div class="card-body">
+                <h5 class="card-title">Crossover Criteria</h5>
+                <div class="small">
+                    <p class="mb-2"><strong>Indicators:</strong></p>
+                    <ul class="list-unstyled ms-3">
+                        <li>• EMA Period: {{ crossover_info.ema_period }}</li>
+                        <li>• SMA Period: {{ crossover_info.sma_period }}</li>
+                    </ul>
+                    <p class="mb-2"><strong>Signal Conditions:</strong></p>
+                    <ul class="list-unstyled ms-3">
+                        <li class="text-success">• Bullish: {{ crossover_info.bullish_condition }}</li>
+                        <li class="text-danger">• Bearish: {{ crossover_info.bearish_condition }}</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Recent Crossovers</h5>
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Symbol</th>
+                            <th>Company Name</th>
+                            <th>Type</th>
+                            <th>Price</th>
+                            <th>Time</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for event in recent_crossovers %}
+                        <tr>
+                            <td>{{ event.stock.symbol }}</td>
+                            <td>{{ event.stock.company_name or 'N/A' }}</td>
+                            <td>
+                                <span class="badge {% if event.crossover_type == 'bullish' %}bg-success{% else %}bg-danger{% endif %}">
+                                    {{ event.crossover_type }}
+                                </span>
+                            </td>
+                            <td>${{ "%.2f"|format(event.price) }}</td>
+                            <td>{{ event.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                            <td>
+                                <a href="{{ url_for('main.stock_detail', symbol=event.stock.symbol) }}" 
+                                   class="btn btn-sm btn-primary">View</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- All stocks with signals -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">All Stocks with Signals</h5>
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Symbol</th>
+                            <th>Company Name</th>
+                            <th>Last Price</th>
+                            <th>Signal Type</th>
+                            <th>Signal Price</th>
+                            <th>Signal Time</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for stock in stocks_with_signals %}
+                        <tr>
+                            <td>{{ stock.symbol }}</td>
+                            <td>{{ stock.company_name or 'N/A' }}</td>
+                            <td>${{ "%.2f"|format(stock.last_price) }}</td>
+                            <td>
+                                <span class="badge {% if stock.crossover_type == 'bullish' %}bg-success{% else %}bg-danger{% endif %}">
+                                    {{ stock.crossover_type }}
+                                </span>
+                            </td>
+                            <td>${{ "%.2f"|format(stock.crossover_price) }}</td>
+                            <td>{{ stock.last_crossover.strftime('%Y-%m-%d %H:%M:%S') if stock.last_crossover else 'N/A' }}</td>
+                            <td>
+                                <a href="{{ url_for('main.stock_detail', symbol=stock.symbol) }}" 
+                                   class="btn btn-sm btn-primary">View</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+<script>
+const socket = io();
+const progressBar = document.querySelector('#update-progress');
+const progressBarInner = progressBar.querySelector('.progress-bar');
+
+socket.on('update_progress', function(data) {
+    const percent = Math.round((data.progress / data.total) * 100);
+    progressBar.style.display = 'block';
+    progressBarInner.style.width = `${percent}%`;
+    progressBarInner.textContent = `${percent}%`;
+    
+    // Update the refresh button text to show progress
+    const refreshBtn = document.getElementById('refresh-btn');
+    refreshBtn.innerHTML = `<i class="fas fa-sync-alt fa-spin"></i> Updating (${percent}%)`;
+});
+
+socket.on('update_complete', function() {
+    // Show completion message
+    progressBarInner.textContent = "Update Complete!";
+    progressBarInner.style.width = "100%";
+    
+    setTimeout(() => {
+        progressBar.style.display = 'none';
+        location.reload();
+    }, 1000);
+});
+
+function refreshAllData() {
+    const refreshBtn = document.getElementById('refresh-btn');
+    refreshBtn.disabled = true;
+    refreshBtn.innerHTML = '<i class="fas fa-sync-alt fa-spin"></i> Starting Update...';
+    progressBar.style.display = 'block';
+    progressBarInner.style.width = '0%';
+    progressBarInner.textContent = '0%';
+
+    fetch('{{ url_for("main.update_stocks") }}')
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'error') {
+                alert('Error refreshing data: ' + data.message);
+                refreshBtn.disabled = false;
+                refreshBtn.innerHTML = '<i class="fas fa-sync-alt"></i> Refresh All';
+                progressBar.style.display = 'none';
+            }
+        })
+        .catch(error => {
+            alert('Error refreshing data: ' + error);
+            refreshBtn.disabled = false;
+            refreshBtn.innerHTML = '<i class="fas fa-sync-alt"></i> Refresh All';
+            progressBar.style.display = 'none';
+        });
+}
+</script>
+{% endblock %} 

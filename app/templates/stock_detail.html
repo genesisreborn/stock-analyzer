@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+                <h5 class="card-title mb-0">{{ stock.symbol }}</h5>
+                <p class="text-muted mb-0">{{ stock.company_name or 'N/A' }}</p>
+            </div>
+            <div class="d-flex gap-2">
+                <!-- Interval Selector -->
+                <select class="form-select" id="interval-select" onchange="changeInterval(this.value)">
+                    {% for interval in intervals %}
+                    <option value="{{ interval.value }}" {% if interval.value == selected_interval %}selected{% endif %}>
+                        {{ interval.label }}
+                    </option>
+                    {% endfor %}
+                </select>
+                
+                <!-- Refresh Button -->
+                <button class="btn btn-primary" onclick="refreshData()" id="refresh-btn">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+                
+                <!-- Export Button -->
+                <a href="{{ url_for('main.export_stock_data', symbol=stock.symbol) }}" 
+                   class="btn btn-success">Export Data</a>
+            </div>
+        </div>
+        
+        <div class="row">
+            <div class="col-md-3">
+                <p>Last Price: ${{ "%.2f"|format(stock.last_price) }}</p>
+            </div>
+            <div class="col-md-3">
+                <p>Last Crossover: {{ stock.last_crossover.strftime('%Y-%m-%d %H:%M') if stock.last_crossover else 'N/A' }}</p>
+            </div>
+            <div class="col-md-3">
+                <p>Crossover Price: ${{ "%.2f"|format(stock.crossover_price) if stock.crossover_price else 'N/A' }}</p>
+            </div>
+            <div class="col-md-3">
+                <p>Type: 
+                    {% if stock.crossover_type %}
+                    <span class="badge {% if stock.crossover_type == 'bullish' %}bg-success{% else %}bg-danger{% endif %}">
+                        {{ stock.crossover_type }}
+                    </span>
+                    {% else %}
+                    N/A
+                    {% endif %}
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <div id="chart"></div>
+    </div>
+</div>
+
+<script>
+    // Store the URL parameters in a variable to avoid template syntax in JavaScript
+    const stockSymbol = "{{ stock.symbol }}";
+    const stockDetailUrl = "{{ url_for('main.stock_detail', symbol=stock.symbol) }}";
+    const refreshUrl = "{{ url_for('main.refresh_stock', symbol=stock.symbol) }}";
+    // Parse the chart data
+    const chartData = JSON.parse('{{ chart_json|safe }}');
+    
+    // Initialize the chart
+    Plotly.newPlot('chart', chartData.data, chartData.layout);
+
+    // Change interval function
+    function changeInterval(interval) {
+        window.location.href = `${stockDetailUrl}?interval=${interval}`;
+    }
+
+    // Refresh data function
+    function refreshData() {
+        const refreshBtn = document.getElementById('refresh-btn');
+        const originalContent = refreshBtn.innerHTML;
+        
+        // Disable button and show loading state
+        refreshBtn.disabled = true;
+        refreshBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Refreshing...';
+
+        fetch(refreshUrl)
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    location.reload();
+                } else {
+                    alert('Error refreshing data: ' + data.message);
+                    refreshBtn.disabled = false;
+                    refreshBtn.innerHTML = originalContent;
+                }
+            })
+            .catch(error => {
+                alert('Error refreshing data: ' + error);
+                refreshBtn.disabled = false;
+                refreshBtn.innerHTML = originalContent;
+            });
+    }
+</script>
+{% endblock %} 

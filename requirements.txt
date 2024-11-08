@@ -1,0 +1,13 @@
+flask
+pandas
+numpy
+requests
+python-dotenv
+flask-sqlalchemy
+yfinance
+plotly
+flask-login
+flask-socketio
+eventlet
+flask-migrate
+APScheduler

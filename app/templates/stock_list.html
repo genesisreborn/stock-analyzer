@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card">
+    <div class="card-body">
+        <h5 class="card-title">S&P 500 Stocks</h5>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Symbol</th>
+                    <th>Company Name</th>
+                    <th>Last Price</th>
+                    <th>Last Updated</th>
+                    <th>EMA (14)</th>
+                    <th>SMA (50)</th>
+                    <th>Last Crossover</th>
+                    <th>Signal Type</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for stock in stocks %}
+                <tr>
+                    <td>{{ stock.symbol }}</td>
+                    <td>{{ stock.company_name or 'N/A' }}</td>
+                    <td>${{ "%.2f"|format(stock.last_price) if stock.last_price else 'N/A' }}</td>
+                    <td>{{ stock.last_updated.strftime('%Y-%m-%d %H:%M:%S') if stock.last_updated else 'N/A' }}</td>
+                    <td>${{ "%.2f"|format(stock.ema) if stock.ema else 'N/A' }}</td>
+                    <td>${{ "%.2f"|format(stock.sma) if stock.sma else 'N/A' }}</td>
+                    <td>{{ stock.last_crossover.strftime('%Y-%m-%d %H:%M:%S') if stock.last_crossover else 'N/A' }}</td>
+                    <td>
+                        {% if stock.crossover_type %}
+                        <span class="badge {% if stock.crossover_type == 'bullish' %}bg-success{% else %}bg-danger{% endif %}">
+                            {{ stock.crossover_type }}
+                        </span>
+                        {% else %}
+                        N/A
+                        {% endif %}
+                    </td>
+                    <td>
+                        <a href="{{ url_for('main.stock_detail', symbol=stock.symbol) }}" 
+                           class="btn btn-sm btn-primary">View</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %} 
